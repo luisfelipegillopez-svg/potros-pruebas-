@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: potros-pruebas
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: AIRTABLE_TOKEN
+        sync: false
+      - key: AIRTABLE_BASE_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MASTER_PIN
+        default: Fg050522
+      - key: PORT
+        value: 5000
