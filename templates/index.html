@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>Potros Sports - Gestión Élite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --potros-blue: #1e1b4b;
+            --potros-green: #10b981;
+            --potros-light: #f8fafc;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--potros-light);
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .view {
+            display: none;
+            opacity: 0;
+            transition: opacity .4s;
+            padding-bottom: 90px;
+        }
+        .view.active {
+            display: block;
+            opacity: 1;
+        }
+        .chip-btn {
+            background: #fff;
+            border: 2px solid #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all .2s;
+            color: #64748b;
+        }
+        .chip-btn.active {
+            background: var(--potros-blue);
+            color: #fff;
+            border-color: var(--potros-blue);
+            transform: translateY(-2px);
+        }
+        .form-input {
+            width: 100%;
+            background: #fff;
+            padding: 14px 16px;
+            border-radius: 16px;
+            font-weight: 600;
+            border: 2px solid #e2e8f0;
+            outline: 0;
+            transition: all .3s;
+            color: #0f172a;
+        }
+        .form-input:focus {
+            border-color: var(--potros-blue);
+        }
+        #p-session table, #pf-main table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 12px;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        #p-session th, #pf-main th {
+            background: #1e1b4b;
+            color: #fff;
+            padding: 12px;
+            text-align: left;
+            text-transform: uppercase;
+        }
+        #p-session td, #pf-main td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: top;
+        }
+        #p-session tr:nth-child(even), #pf-main tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        .coach-only, .super-admin-only, .sub-admin-only { display: none !important; }
+        body.is-coach .coach-only { display: flex !important; }
+        body.is-super-admin .super-admin-only { display: block !important; }
+        body.is-super-admin .coach-only { display: flex !important; }
+        body.is-sub-admin .sub-admin-only { display: block !important; }
+        body.is-sub-admin .read-only-hide { display: none !important; }
+        #ai-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,.85);
+            backdrop-filter: blur(12px);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 6px solid #e2e8f0;
+            border-top-color: var(--potros-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+    <div id="ai-overlay" style="display:flex">
+        <div class="spinner"></div>
+        <h2 class="mt-4 font-black text-indigo-950 uppercase tracking-widest text-center px-6">Sincronizando con la Nube...</h2>
+    </div>
+
+    <div id="app">
+        <nav class="bg-indigo-950 text-white sticky top-0 z-40 shadow-lg border-b-[3px] border-emerald-500">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="window.app.showView('categories')">
+                    <img src="/static/logos/logo-potros-texto.jpg" alt="Logo" class="h-10 md:h-12 w-auto object-contain rounded-lg">
+                    <h1 class="text-xl md:text-2xl font-black uppercase hidden sm:block tracking-tighter ml-2">Potros Sports</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="user-badge" class="hidden items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <span id="user-name-display" class="text-[10px] font-black uppercase tracking-widest opacity-80"></span>
+                    </div>
+                    <button onclick="window.app.showCompare()" class="bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-colors">🆚 Comparar</button>
+                    <button onclick="window.app.showAdminPanel()" class="super-admin-only bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-emerald-500/30">⚙️ Gestión</button>
+                    <button onclick="window.app.showPhysicalList()" class="coach-only sub-admin-only bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">💪 Física</button>
+                    <button onclick="window.app.showPlanningList()" class="coach-only bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">📝 Cancha</button>
+                    <button onclick="window.app.askPin()" class="bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">🔒 Acceso</button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto px-4 py-6 md:py-12">
+            <section id="view-categories" class="view active">
+                <div class="public-only">
+                    <div class="relative bg-indigo-950 rounded-[50px] p-8 md:p-16 text-white mb-12 overflow-hidden border-b-[8px] border-emerald-500 shadow-2xl">
+                        <img src="/static/logos/logo-potros-simbolo.jpg" class="absolute top-1/2 right-0 -translate-y-1/2 opacity-10 w-96 h-96 grayscale rounded-full" alt="Fondo">
+                        <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                            <div>
+                                <img src="/static/logos/logo-potros-texto.jpg" alt="Logo" class="h-20 mb-8 rounded-2xl shadow-xl">
+                                <h2 class="text-4xl md:text-6xl font-black uppercase leading-none tracking-tighter mb-4">CORPORACIÓN <span class="text-emerald-400 italic">POTROS</span> SPORTS</h2>
+                                <p class="text-slate-400 font-bold text-sm md:text-lg uppercase tracking-widest opacity-80 mb-8">Software de Gestión Élite para Voleibol de Alto Rendimiento</p>
+                            </div>
+                            <div class="hidden lg:block bg-white/5 p-8 rounded-[40px] border border-white/10 backdrop-blur-md">
+                                <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-4 text-center">ADN Potros Sports (Global)</h4>
+                                <canvas id="radarGlobal" width="300" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+                        <div class="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm text-center border-b-4 border-emerald-500">
+                            <div class="text-3xl mb-4">⚡</div>
+                            <h4 class="font-black uppercase text-xs text-indigo-950 mb-2">Lab Físico</h4>
+                            <p class="text-[10px] text-slate-500 leading-relaxed uppercase font-bold">Análisis científico de salto (SJ/CMJ) para prescripción física personalizada.</p>
+                        </div>
+                        <div class="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm text-center">
+                            <div class="text-3xl mb-4">🚑</div>
+                            <h4 class="font-black uppercase text-xs text-indigo-950 mb-2">Gestión Élite</h4>
+                            <p class="text-[10px] text-slate-500 leading-relaxed uppercase font-bold">Control de asistencia, salud y seguimiento de nóminas de alto nivel.</p>
+                        </div>
+                    </div>
+                </div>
+                <h3 id="cat-title-text" class="text-sm font-black uppercase tracking-[0.2em] text-slate-400 mb-8 ml-4">Nuestras Categorías</h3>
+                <div id="categories-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6"></div>
+            </section>
+
+            <section id="view-list" class="view">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+                    <h2 id="list-title" class="text-2xl font-black uppercase text-indigo-950 tracking-tighter"></h2>
+                    <div class="flex gap-2">
+                        <button id="btn-attendance-mode" onclick="window.app.toggleAttendanceMode()" class="read-only-hide coach-only bg-white border-2 border-slate-200 text-slate-600 px-6 py-2 rounded-xl text-xs font-black uppercase">📋 Asistencia</button>
+                        <button onclick="window.app.showAttendanceHistory()" class="bg-white border-2 border-slate-200 text-slate-600 px-6 py-2 rounded-xl text-xs font-black uppercase">📅 Historial</button>
+                        <button onclick="window.app.showAthleteForm()" class="read-only-hide coach-only bg-indigo-950 text-white px-6 py-2 rounded-xl text-xs font-black uppercase">✚ Registrar</button>
+                    </div>
+                </div>
+                <div id="attendance-bar" class="hidden bg-emerald-500 text-indigo-950 p-4 rounded-2xl mb-6 flex justify-between items-center animate-pulse">
+                    <span class="text-xs font-black uppercase">✨ Modo Asistencia Activo</span>
+                    <button onclick="window.app.saveAttendance()" class="bg-indigo-950 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase">Guardar Presencia</button>
+                </div>
+                <div id="attendance-history" class="hidden bg-white p-8 rounded-[35px] border border-slate-100 shadow-xl mb-10">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-sm font-black uppercase tracking-widest text-indigo-950">Historial</h3>
+                        <button onclick="document.getElementById('attendance-history').classList.add('hidden')" class="text-[10px] font-bold text-slate-400 uppercase">Cerrar</button>
+                    </div>
+                    <div id="attendance-history-list" class="space-y-4"></div>
+                </div>
+                <div id="athletes-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6"></div>
+            </section>
+
+            <section id="view-profile" class="view">
+                <div id="profile-content" class="max-w-5xl mx-auto"></div>
+            </section>
+
+            <section id="view-compare" class="view">
+                <div class="max-w-6xl mx-auto bg-indigo-950 rounded-[50px] p-12 text-white border-b-[10px] border-emerald-500 shadow-2xl relative overflow-hidden">
+                    <img src="/static/logos/logo-potros-simbolo.jpg" class="absolute top-1/2 right-0 -translate-y-1/2 opacity-5 w-[600px] h-[600px] grayscale rounded-full">
+                    <div class="relative z-10 text-center mb-10"><h2 class="text-4xl font-black uppercase tracking-tighter mb-2">Comparador Élite</h2><p class="text-emerald-400 font-black text-xs tracking-widest uppercase">Análisis Superpuesto</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                        <div><label class="text-[10px] font-black uppercase opacity-50 block mb-2">Atleta A</label><select id="compare-a" class="form-input text-indigo-950 text-sm" onchange="window.app.updateCompare()"></select></div>
+                        <div><label class="text-[10px] font-black uppercase opacity-50 block mb-2">Atleta B</label><select id="compare-b" class="form-input text-indigo-950 text-sm" onchange="window.app.updateCompare()"></select></div>
+                    </div>
+                    <div class="max-w-md mx-auto bg-white/5 p-8 rounded-[40px] border border-white/10 backdrop-blur-md">
+                        <canvas id="radarComparativo" width="400" height="400"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-planning-list" class="view">
+                <div class="flex justify-between items-center mb-8"><h2 class="text-2xl font-black uppercase text-indigo-950 tracking-tighter">Diseño Cancha</h2><div class="flex gap-2"><button id="btn-back-folders" onclick="window.app.showPlanningFolders()" class="hidden bg-white border-2 border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-black uppercase">⬅ Volver</button><button onclick="window.app.showPlanningForm()" class="read-only-hide coach-only bg-indigo-950 text-white px-6 py-2 rounded-xl text-xs font-black uppercase">✚ Crear Microciclo</button></div></div>
+                <div id="planning-folders" class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8"></div>
+                <div id="planning-grid" class="hidden grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+            </section>
+
+            <section id="view-planning-form" class="view">
+                <form id="planning-form" class="bg-white p-10 rounded-[40px] border border-slate-100 shadow-xl max-w-5xl mx-auto" onsubmit="window.app.handlePlanningSave(event)">
+                    <h2 class="text-xl font-black uppercase mb-6 text-indigo-950">🏐 Planificador Maestro</h2>
+                    <div class="mb-8 space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Categoría</label><select id="p-cat" class="form-input text-indigo-950 text-sm"></select></div>
+                            <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Días</label><div id="p-day-btns" class="flex flex-wrap gap-2"></div></div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Duración (min)</label><input required id="p-dur" type="number" class="form-input text-sm"></div>
+                            <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Jugadoras</label><input required id="p-players" type="number" class="form-input text-sm"></div>
+                        </div>
+                        <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Metodologías</label><div id="p-method-btns" class="flex flex-wrap gap-2"></div></div>
+                    </div>
+                    <input required id="p-obj" type="text" placeholder="Objetivo de la planificación" class="form-input text-sm mb-6">
+                    <button type="button" onclick="window.app.generateSessionNative()" class="read-only-hide w-full bg-indigo-950 text-emerald-400 py-4 rounded-xl font-black mb-6 uppercase">🤖 GENERAR EN SERIE</button>
+                    <div id="p-session" contenteditable="true" class="form-input border-indigo-100 min-h-[400px] text-sm p-8 rounded-2xl mb-6 shadow-inner border-dashed border-2 bg-white outline-none"></div>
+                    <div class="flex justify-end gap-4"><button type="button" onclick="window.app.showView('planning-list')" class="text-slate-400 font-black text-xs uppercase">Cancelar</button><button type="submit" class="read-only-hide bg-indigo-600 text-white px-10 py-3 rounded-xl font-black uppercase">Guardar</button></div>
+                </form>
+            </section>
+
+            <section id="view-physical-list" class="view">
+                <div class="flex justify-between items-center mb-8"><h2 class="text-2xl font-black uppercase text-indigo-950 tracking-tighter">Lab Físico</h2><div class="flex gap-2"><button id="btn-back-folders-physical" onclick="window.app.showPhysicalFolders()" class="hidden bg-white border-2 border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-black uppercase">⬅ Volver</button><button onclick="window.app.showPhysicalForm()" class="coach-only bg-indigo-950 text-white px-6 py-2 rounded-xl text-xs font-black uppercase">✚ Crear Rutina</button></div></div>
+                <div id="physical-folders" class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8"></div>
+                <div id="physical-grid" class="hidden grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+            </section>
+
+            <section id="view-physical-form" class="view">
+                <form onsubmit="window.app.handlePhysicalSave(event)" class="bg-white p-10 rounded-[40px] border border-slate-100 shadow-xl max-w-5xl mx-auto">
+                    <h2 class="text-xl font-black uppercase mb-6 text-indigo-950">⚡ Preparador Inteligente</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Equipo</label><select id="pf-cat" class="form-input text-indigo-950 text-sm"></select></div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Duración</label><input id="pf-dur" type="number" class="form-input text-sm" value="60"></div>
+                            <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Días/Sem</label><input id="pf-days" type="number" class="form-input text-sm" value="3"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Material</label><input id="pf-material" type="text" class="form-input text-sm"></div>
+                        <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Enfoque</label><input id="pf-focus" type="text" class="form-input text-sm"></div>
+                    </div>
+                    <button type="button" onclick="window.app.generatePFNative()" class="read-only-hide w-full bg-indigo-950 text-emerald-400 py-4 rounded-xl font-black mb-6 shadow-lg uppercase">🤖 ANALIZAR Y GENERAR</button>
+                    <div id="pf-main" contenteditable="true" class="form-input border-indigo-100 min-h-[400px] text-sm p-8 rounded-2xl mb-6 shadow-inner border-dashed border-2 bg-white outline-none"></div>
+                    <div class="flex justify-end gap-4"><button type="button" onclick="window.app.showPhysicalList()" class="text-slate-400 font-black text-xs uppercase">Cancelar</button><button type="submit" class="read-only-hide bg-indigo-600 text-white px-10 py-3 rounded-xl font-black uppercase">Guardar</button></div>
+                </form>
+            </section>
+
+            <section id="view-athlete-form" class="view">
+                <form onsubmit="window.app.handleAthleteSave(event)" class="bg-white p-10 rounded-[40px] border border-slate-100 shadow-xl max-w-5xl mx-auto">
+                    <h2 id="athlete-form-title" class="text-xl font-black uppercase mb-6 text-indigo-950">📋 Registro Atleta</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Nombre</label><input required id="at-name" type="text" class="form-input text-sm"></div>
+                        <div><label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Categoría</label><select required id="at-cat" class="form-input text-indigo-950 text-sm"></select></div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div><label class="text-[8px] font-black uppercase">DNI/Cédula</label><input required id="at-dni" type="number" class="form-input text-xs"></div>
+                        <div><label class="text-[8px] font-black uppercase">Año</label><input required id="at-year" type="number" class="form-input text-xs"></div>
+                        <div><label class="text-[8px] font-black uppercase">Estatura</label><input required id="at-height" type="number" class="form-input text-xs"></div>
+                        <div><label class="text-[8px] font-black uppercase">Envergadura</label><input required id="at-wingspan" type="number" class="form-input text-xs"></div>
+                    </div>
+                    <div class="bg-indigo-50 p-8 rounded-[35px] mb-8 border border-indigo-100"><h3 class="text-[10px] font-black uppercase mb-6 text-indigo-950 flex items-center gap-2">🚑 Datos de Salud y Emergencia</h3><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><div><label class="text-[8px] uppercase opacity-50">RH (Sangre)</label><select id="at-rh" class="form-input text-indigo-950 text-xs"><option>O+</option><option>O-</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option></select></div><div><label class="text-[8px] uppercase opacity-50">EPS</label><input id="at-eps" type="text" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">Contacto Emerg.</label><input id="at-emergency" type="text" placeholder="Nombre y Cel" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">Alergias/Observ.</label><input id="at-allergies" type="text" class="form-input text-xs"></div></div></div><div class="bg-slate-100 p-8 rounded-[35px] mb-8 border border-dashed border-slate-200"><h3 class="text-[10px] font-black uppercase mb-6 text-slate-400">⚡ Pruebas Físicas</h3><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"><div><label class="text-[8px] uppercase opacity-50">Peso (kg)</label><input id="at-weight" type="number" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">SJ (cm)</label><input id="at-sj" type="number" step="0.01" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">CMJ (cm)</label><input id="at-cmj" type="number" step="0.01" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">Libre (cm)</label><input id="at-libre" type="number" step="0.01" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">Remate (m)</label><input id="at-remate" type="number" step="0.01" class="form-input text-xs"></div><div><label class="text-[8px] uppercase opacity-50">Bloqueo (m)</label><input id="at-bloqueo" type="number" step="0.01" class="form-input text-xs"></div></div></div><div class="flex justify-end gap-4"><button type="button" onclick="window.app.showView('list')" class="text-slate-400 font-black text-xs uppercase">Cancelar</button><button type="submit" class="read-only-hide bg-indigo-600 text-white px-10 py-3 rounded-xl font-black uppercase">Guardar Atleta</button></div></form></section>
+        </main>
+    </div>
+
+    <div id="loginOverlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-indigo-950/90 backdrop-blur-md" style="display:none">
+        <div class="bg-white p-10 rounded-[45px] w-11/12 max-w-md shadow-2xl text-center"><div class="mb-10"><img src="/static/logos/logo-potros-texto.jpg" alt="Logo" class="mx-auto h-28 object-contain mb-6 rounded-3xl shadow-lg border border-slate-100"><h2 class="text-2xl font-black text-indigo-950 mb-1 uppercase tracking-tighter">Potros Sports</h2><p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest">Gestión de Alto Rendimiento</p></div><div class="space-y-4"><div class="flex bg-slate-100 p-1 rounded-xl mb-6"><button onclick="window.app.toggleLoginMode('staff')" id="btn-mode-staff" class="flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg bg-indigo-950 text-white transition-all">Staff Técnico</button><button onclick="window.app.toggleLoginMode('parents')" id="btn-mode-parents" class="flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg text-slate-400 transition-all">Consulta Padres</button></div><div id="login-staff-fields" class="space-y-4"><input type="password" id="login-pin" placeholder="PIN DE ACCESO" class="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl text-indigo-950 font-black text-center tracking-[0.5em] outline-none focus:border-indigo-950"></div><div id="login-parent-fields" class="hidden space-y-4"><input type="number" id="login-dni" placeholder="N° Documento Deportista" class="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl text-indigo-950 font-black text-center outline-none focus:border-indigo-950"></div><button onclick="window.app.handleLogin()" class="w-full bg-emerald-500 text-indigo-950 font-black py-5 rounded-2xl mt-4 uppercase tracking-widest shadow-lg active:scale-95 transition-all">Ingresar al Sistema</button><div id="staff-only-links" class="pt-6 border-t border-slate-100 mt-6"><button onclick="window.app.showRegisterForm()" class="text-indigo-950 font-black text-[10px] uppercase tracking-widest hover:text-emerald-500 transition-colors">Solicitar Acceso Staff</button></div><button onclick="window.app.hideLoginOverlay()" class="mt-6 text-slate-400 hover:text-indigo-950 font-bold uppercase text-[9px] tracking-widest">Cerrar</button></div></div>
+    </div>
+
+    <div id="registerOverlay" class="fixed inset-0 z-[110] flex items-center justify-center bg-indigo-950/95 backdrop-blur-xl" style="display:none">
+        <div class="bg-white p-10 rounded-[45px] w-11/12 max-w-md shadow-2xl text-center"><h2 class="text-xl font-black text-indigo-950 mb-6 uppercase tracking-tighter">Solicitud de Acceso</h2><div class="space-y-4 text-left"><input type="text" id="reg-name" placeholder="Nombre Completo" class="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl text-indigo-950 font-bold outline-none focus:border-indigo-950 text-center"><input type="password" id="reg-pin" placeholder="PIN Deseado (Mín. 4 dígitos)" class="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl text-indigo-950 font-bold outline-none focus:border-indigo-950 text-center tracking-widest"><div class="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 max-h-[200px] overflow-y-auto"><label class="text-[9px] font-black uppercase text-slate-400 block mb-4">Selecciona Equipos Asignados</label><div id="reg-categories-list" class="grid grid-cols-2 gap-2"></div></div><button onclick="window.app.handleRegister()" class="w-full bg-indigo-950 text-white font-black py-5 rounded-2xl mt-4 uppercase tracking-widest shadow-xl">Enviar Solicitud</button><button onclick="window.app.hideRegisterOverlay()" class="text-slate-400 font-bold uppercase text-[9px] mt-4 block mx-auto text-center w-full">Cancelar</button></div></div>
+    </div>
+
+    <div id="adminPanelOverlay" class="fixed inset-0 z-[120] flex items-center justify-center bg-indigo-950/95 backdrop-blur-xl" style="display:none">
+        <div class="bg-white p-10 rounded-[50px] w-11/12 max-w-2xl shadow-2xl"><div class="flex justify-between items-center mb-10"><div><h2 class="text-2xl font-black text-indigo-950 uppercase tracking-tighter">Gestión Staff</h2><p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest">Solicitudes Pendientes</p></div><button onclick="window.app.hideAdminPanel()" class="text-slate-300 hover:text-indigo-950 transition-colors font-black text-2xl">×</button></div><div id="pending-coaches-list" class="space-y-4 max-h-[400px] overflow-y-auto pr-2"></div></div>
+    </div>
+
+    <script>
+    window.app = {
+        scriptURL: '/api/save',
+        dataURL: '/api/data',
+        athletes: [], sessionPlans: [], physicalPlans: [], registeredCoaches: [], attendance: [], evaluations: [],
+        isCoach: false, isSuperAdmin: false, isSubAdmin: false, isParent: false, currentLoginMode: 'staff', currentCoachTeams: [],
+        appCategories: ['Infantil A1','Infantil A2','Infantil A3','Mini 1 y 2','Benjamín','Infantil B y C','Mini 3 y 4','Mixto','Mayores Femenino','Menores A','Mayores Masculino','Sub 15 Masculino'],
+
+        async init() {
+            const sr = sessionStorage.getItem('potros_role');
+            if (sr === 'superadmin') this.setSession('superadmin');
+            else if (sr === 'subadmin') this.setSession('subadmin');
+            else if (sr === 'coach') this.setSession('coach', JSON.parse(sessionStorage.getItem('potros_coach_data') || 'null'));
+            else if (sr === 'parent') this.setSession('parent');
+            this.showView('categories');
+            this.syncFromCloud().then(() => {
+                this.renderCategories();
+                this.renderRadarGlobal();
+                document.getElementById('ai-overlay').style.display = 'none';
+            }).catch(e => {
+                console.error(e);
+                document.getElementById('ai-overlay').style.display = 'none';
+            });
+        },
+
+        async syncFromCloud() {
+            try {
+                const r = await fetch(this.dataURL);
+                const d = await r.json();
+                this.athletes = d.athletes || [];
+                this.sessionPlans = d.sessionPlans || [];
+                this.physicalPlans = d.physicalPlans || [];
+                this.registeredCoaches = d.registeredCoaches || [];
+                this.attendance = d.attendance || [];
+                this.evaluations = d.evaluations || [];
+            } catch (e) { console.error("Sync Error:", e); }
+        },
+
+        showView(v) {
+            if (this.isParent && v !== 'profile' && v !== 'categories') return;
+            document.querySelectorAll('.view').forEach(x => { x.classList.remove('active'); x.style.display = 'none'; });
+            const t = document.getElementById('view-' + v);
+            if (t) { t.style.display = 'block'; setTimeout(() => t.classList.add('active'), 10); if (v === 'categories') this.renderRadarGlobal(); }
+        },
+
+        askPin() {
+            if (this.isSuperAdmin || this.isCoach || this.isSubAdmin || this.isParent) {
+                if (confirm("🔒 ¿Cerrar sesión activa?")) { sessionStorage.clear(); location.reload(); }
+            } else { this.showLoginOverlay(); }
+        },
+
+        showLoginOverlay() { document.getElementById('loginOverlay').style.display = 'flex'; },
+        hideLoginOverlay() { document.getElementById('loginOverlay').style.display = 'none'; },
+
+        toggleLoginMode(m) {
+            this.currentLoginMode = m; const isStaff = m === 'staff';
+            document.getElementById('btn-mode-staff').className = isStaff ? 'flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg bg-indigo-950 text-white' : 'flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg text-slate-400';
+            document.getElementById('btn-mode-parents').className = !isStaff ? 'flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg bg-indigo-950 text-white' : 'flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg text-slate-400';
+            document.getElementById('login-staff-fields').classList.toggle('hidden', !isStaff);
+            document.getElementById('login-parent-fields').classList.toggle('hidden', isStaff);
+            document.getElementById('staff-only-links').classList.toggle('hidden', !isStaff);
+        },
+
+        showRegisterForm() {
+            const l = document.getElementById('reg-categories-list');
+            l.innerHTML = this.appCategories.map(c => `<label class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border-2 border-slate-100 cursor-pointer transition-all hover:border-indigo-950"><input type="checkbox" name="reg-teams" value="${c}" class="accent-indigo-950"><span class="text-[9px] font-bold text-slate-600 uppercase">${c}</span></label>`).join('');
+            document.getElementById('registerOverlay').style.display = 'flex';
+        },
+
+        hideRegisterOverlay() { document.getElementById('registerOverlay').style.display = 'none'; },
+
+        async handleRegister() {
+            const n = document.getElementById('reg-name').value.trim();
+            const p = document.getElementById('reg-pin').value.trim();
+            const t = Array.from(document.querySelectorAll('input[name="reg-teams"]:checked')).map(x => x.value);
+            if (!n || p.length < 4) return alert("Faltan datos obligatorios");
+            const res = await fetch('/api/save/staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n, pin: p, status: 'pendiente', teams: t.join(', ') }) });
+            if (res.ok) { alert("📩 Solicitud enviada."); this.hideRegisterOverlay(); }
+        },
+
+        async handleLogin() {
+            document.getElementById('ai-overlay').style.display = 'flex';
+            try {
+                if (this.currentLoginMode === 'parents') {
+                    const dni = document.getElementById('login-dni').value.trim();
+                    const res = await fetch('/api/login/parent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dni }) });
+                    const data = await res.json();
+                    if (data.success) { this.setSession('parent'); this.hideLoginOverlay(); this.showProfile(data.athlete_id); }
+                    else alert("❌ Documento no registrado");
+                } else {
+                    const p = document.getElementById('login-pin').value.trim();
+                    const res = await fetch('/api/login/staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: p }) });
+                    const data = await res.json();
+                    if (data.success) { this.setSession(data.role, data.data); this.hideLoginOverlay(); this.renderCategories(); }
+                    else if (data.error === 'pendiente') alert("⏳ Tu solicitud está pendiente");
+                    else alert("❌ PIN incorrecto");
+                }
+            } catch (e) { alert("Error de conexión"); }
+            finally { document.getElementById('ai-overlay').style.display = 'none'; }
+        },
+
+        setSession(role, data = null) {
+            this.isSuperAdmin = (role === 'superadmin'); this.isSubAdmin = (role === 'subadmin');
+            this.isCoach = (role === 'activo' || role === 'superadmin'); this.isParent = (role === 'parent');
+            this.currentCoachTeams = data && data.teams ? data.teams.split(', ') : [];
+            const b = document.getElementById('user-badge'); const n = document.getElementById('user-name-display');
+            if (this.isCoach || this.isSubAdmin) { b.classList.remove('hidden'); b.classList.add('flex'); n.innerText = this.isSuperAdmin ? "Admin" : (data ? data.name : "Coach"); }
+            document.body.classList.toggle('is-super-admin', this.isSuperAdmin); document.body.classList.toggle('is-sub-admin', this.isSubAdmin); document.body.classList.toggle('is-coach', this.isCoach);
+            sessionStorage.setItem('potros_role', role); if (data) sessionStorage.setItem('potros_coach_data', JSON.stringify(data));
+        },
+
+        renderCategories() {
+            const l = (this.isSuperAdmin || this.isSubAdmin || !this.isCoach) ? this.appCategories : this.currentCoachTeams;
+            document.getElementById('categories-grid').innerHTML = l.map(cat => `<div onclick="window.app.selectCategory('${cat}')" class="bg-white p-8 rounded-[30px] border border-slate-100 shadow-sm cursor-pointer text-center transition-all hover:shadow-xl hover:-translate-y-1 group">🏐<h3 class="text-[10px] font-black uppercase text-indigo-950 mt-2 group-hover:text-emerald-500">${cat}</h3></div>`).join('');
+        },
+
+        selectCategory(cat) {
+            if (!this.isCoach && !this.isSubAdmin) { this.showLoginOverlay(); return; }
+            this.currentCat = cat; document.getElementById('list-title').innerText = cat;
+            this.isAttendanceMode = false; document.getElementById('attendance-bar').classList.add('hidden');
+            this.attendanceList = new Set(); this.renderAthleteGrid(); this.showView('list');
+        },
+
+        renderAthleteGrid() {
+            const list = this.athletes.filter(a => a.category === this.currentCat);
+            document.getElementById('athletes-grid').innerHTML = list.length === 0 ? '<p class="col-span-full text-center py-10 text-slate-400 font-black uppercase text-xs">Sin jugadoras registradas</p>' : list.map(a => {
+                const initials = a.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                return `
+                    <div onclick="window.app.handleAthleteClick('${a.id}')" class="relative bg-white p-6 rounded-[35px] border border-slate-100 shadow-sm cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group overflow-hidden ${this.attendanceList.has(a.id) ? 'border-emerald-500 bg-emerald-50' : ''}">
+                        <div class="relative z-10 flex flex-col items-center text-center">
+                            <div class="w-12 h-12 rounded-2xl bg-indigo-950 text-emerald-400 flex items-center justify-center font-black text-sm mb-4 shadow-lg">${initials}</div>
+                            <h3 class="text-[11px] font-black uppercase text-indigo-950 mb-2">${a.name}</h3>
+                            <div class="flex gap-3 mt-1 text-[10px] font-black text-slate-600"><span>H: ${a.height || '-'}</span> | <span>W: ${a.wingspan || '-'}</span></div>
+                        </div>
+                        ${this.isAttendanceMode ? `<div class="absolute top-4 right-4"><div class="w-5 h-5 rounded-full border-2 ${this.attendanceList.has(a.id) ? 'bg-emerald-500 border-emerald-500' : 'border-slate-200'}"></div></div>` : ''}
+                    </div>`;
+            }).join('');
+        },
+
+        handleAthleteClick(id) {
+            if (this.isAttendanceMode && !this.isSubAdmin) { if (this.attendanceList.has(id)) this.attendanceList.delete(id); else this.attendanceList.add(id); this.renderAthleteGrid(); }
+            else this.showProfile(id);
+        },
+
+        toggleAttendanceMode() { this.isAttendanceMode = !this.isAttendanceMode; document.getElementById('attendance-bar').classList.toggle('hidden', !this.isAttendanceMode); this.renderAthleteGrid(); },
+
+        async saveAttendance() {
+            if (this.attendanceList.size === 0) return alert("Selecciona presentes");
+            document.getElementById('ai-overlay').style.display = 'flex';
+            const date = new Date().toISOString().split('T')[0];
+            const records = Array.from(this.attendanceList).map(id => ({ jugadora_id: id, fecha: date, asistio: true }));
+            try {
+                const res = await fetch('/api/attendance/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ records, category: this.currentCat }) });
+                if (res.ok) { alert("✅ Asistencia guardada"); this.toggleAttendanceMode(); await this.syncFromCloud(); }
+            } catch (e) { console.error(e); }
+            document.getElementById('ai-overlay').style.display = 'none';
+        },
+
+        showAttendanceHistory() {
+            const h = document.getElementById('attendance-history'); const l = document.getElementById('attendance-history-list');
+            h.classList.remove('hidden');
+            const ta = this.athletes.filter(x => x.category === this.currentCat);
+            const tAtt = this.attendance.filter(x => x.equipo === this.currentCat);
+            const dates = [...new Set(tAtt.map(x => x.fecha))].sort((a,b) => new Date(b) - new Date(a)).slice(0, 8);
+            let html = `<div class="overflow-x-auto"><table class="w-full text-[10px]"><thead><tr><th class="text-left py-2 text-indigo-950">Atleta</th>${dates.map(d => `<th class="text-center text-slate-400 font-bold">${d.split('-')[2]}/${d.split('-')[1]}</th>`).join('')}</tr></thead><tbody>`;
+            ta.sort((a,b) => a.name.localeCompare(b.name)).forEach(at => {
+                html += `<tr class="border-t border-slate-50"><td class="py-2 font-black text-indigo-950 uppercase">${at.name}</td>${dates.map(d => {
+                    const ok = tAtt.some(x => String(x.jugadora_id) === String(at.id) && x.fecha === d);
+                    return `<td class="text-center"><div class="w-2.5 h-2.5 mx-auto rounded-full ${ok ? 'bg-emerald-500' : 'bg-slate-100'}"></div></td>`;
+                }).join('')}</tr>`;
+            });
+            l.innerHTML = html + `</tbody></table></div>`;
+        },
+
+        showProfile(id) {
+            const a = this.athletes.find(x => String(x.id) === String(id)); if (!a) return;
+            const gv = (l) => { const m = (a.notes || "").match(new RegExp(l + ".*?([0-9.]+)", "i")); return m ? parseFloat(m[1]) : 0; };
+            const gt = (l) => { const m = (a.notes || "").match(new RegExp(l + ": (.*?)<br>", "i")); return m ? m[1] : '-'; };
+            const playerEvals = this.evaluations.filter(e => String(e.jugadora_id) === String(a.id)).sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+            const last3 = [...playerEvals].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).slice(0,3);
+            const historyHTML = last3.length > 0 ? last3.map(e => `<div class="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5"><span class="text-[9px] font-bold opacity-60 uppercase">${e.fecha}</span><div class="flex gap-4"><span class="text-[10px] font-black text-emerald-400">SJ: ${e.sj}cm</span><span class="text-[10px] font-black text-indigo-400">CMJ: ${e.cmj}cm</span></div></div>`).join('') : '<p class="text-[9px] opacity-40 text-center uppercase py-2">Sin historial</p>';
+            const pAtt = this.attendance.filter(x => String(x.jugadora_id) === String(a.id));
+            const catSessions = new Set(this.attendance.filter(x => x.equipo === a.category).map(x => x.fecha)).size;
+            const attPct = catSessions > 0 ? Math.round((pAtt.length / catSessions) * 100) : 0;
+            document.getElementById('profile-content').innerHTML = `
+                <div class="bg-indigo-950 rounded-[40px] text-white p-6 md:p-10 shadow-2xl relative overflow-hidden border-b-[6px] border-emerald-500">
+                    <div class="flex justify-between mb-6">${!this.isParent ? `<button onclick="window.app.showView('list')" class="text-[10px] font-black uppercase text-emerald-400">⬅ Nómina</button>` : `<button onclick="window.app.askPin()" class="text-[10px] font-black uppercase text-emerald-400">🚪 Salir</button>`}${!this.isParent ? `<button onclick="window.app.editAthlete('${a.id}')" class="coach-only bg-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/20">✏️ Editar</button>` : ''}</div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10"><div><h2 class="text-3xl md:text-5xl font-black uppercase leading-tight mb-2">${a.name}</h2><p class="text-emerald-400 text-xs md:text-sm font-black mb-8 tracking-widest">${a.category}</p><canvas id="radarPotencial" width="400" height="400"></canvas></div><div class="space-y-6"><div class="grid grid-cols-3 gap-3 text-center"><div class="bg-white/5 p-3 rounded-2xl"><span class="block text-[8px] uppercase text-emerald-400">H</span><span class="text-sm font-black">${a.height}cm</span></div><div class="bg-white/5 p-3 rounded-2xl"><span class="block text-[8px] uppercase text-emerald-400">W</span><span class="text-sm font-black">${a.wingspan}cm</span></div><div class="bg-white/5 p-3 rounded-2xl"><span class="block text-[8px] uppercase text-emerald-400">Att</span><span class="text-sm font-black ${attPct > 80 ? 'text-emerald-400' : 'text-amber-400'}">${attPct}%</span></div></div><div class="bg-indigo-900/30 p-5 rounded-[35px]"><div class="grid grid-cols-3 gap-2 text-center text-[9px]"><div class="bg-white/5 py-2 rounded-xl"><span>Peso</span><br><span class="font-black">${gv("Peso") || '-'}kg</span></div><div class="bg-white/5 py-2 rounded-xl"><span>SJ</span><br><span class="font-black text-emerald-400">${gv("SJ") || '-'}cm</span></div><div class="bg-white/5 py-2 rounded-xl"><span>CMJ</span><br><span class="font-black text-indigo-400">${gv("CMJ") || '-'}cm</span></div></div></div><div class="bg-red-500/10 p-5 rounded-3xl border border-red-500/30 text-[10px]"><h3 class="font-black uppercase mb-3 text-red-400 flex items-center gap-2">🚑 Emergencia</h3><p class="mb-1"><span class="opacity-60 uppercase font-bold">RH:</span> ${gt("RH")} | <span class="opacity-60 uppercase font-bold">EPS:</span> ${gt("EPS")}</p><p><span class="opacity-60 uppercase font-bold">Contacto:</span> ${gt("EMERGENCIA")}</p></div><div class="bg-indigo-900/50 p-5 rounded-3xl"><h3>Historial</h3><div class="space-y-2 mb-4">${historyHTML}</div>${playerEvals.length > 0 ? `<button onclick="document.getElementById('chart-container').classList.toggle('hidden')" class="w-full py-3 bg-emerald-500/10 rounded-xl text-[9px] font-black text-emerald-400">📊 Evolución</button><div id="chart-container" class="hidden mt-6"><canvas id="lineEvolucion" width="400" height="200"></canvas></div>` : ''}</div></div></div></div>`;
+            this.showView('profile');
+            setTimeout(() => {
+                const ctxR = document.getElementById('radarPotencial').getContext('2d');
+                new Chart(ctxR, { type: 'radar', data: { labels: ['SJ','CMJ','Libre','Remate','Bloqueo'], datasets: [{ data: [gv("SJ"), gv("CMJ"), gv("Libre"), gv("Remate")*10, gv("Bloqueo")*10], backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10b981', borderWidth: 3 }] }, options: { scales: { r: { grid: { color: 'rgba(255,255,255,0.1)' }, pointLabels: { color: 'white', font: { weight: 'bold' } }, ticks: { display: false } } }, plugins: { legend: { display: false } } } });
+                if (playerEvals.length > 0) { const ctxL = document.getElementById('lineEvolucion').getContext('2d'); new Chart(ctxL, { type: 'line', data: { labels: playerEvals.map(e => e.fecha), datasets: [{ label: 'SJ', data: playerEvals.map(e => e.sj), borderColor: '#10b981', tension: 0.4 }, { label: 'CMJ', data: playerEvals.map(e => e.cmj), borderColor: '#6366f1', tension: 0.4 }] }, options: { scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' } }, x: { grid: { display: false } } } } }); }
+            }, 100);
+        },
+
+        renderRadarGlobal() {
+            const ctx = document.getElementById('radarGlobal'); if (!ctx || this.athletes.length === 0) return;
+            const gv = (a, l) => { const m = (a.notes || "").match(new RegExp(l + ".*?([0-9.]+)", "i")); return m ? parseFloat(m[1]) : 0; };
+            const p = (l) => this.athletes.reduce((acc, x) => acc + gv(x, l), 0) / this.athletes.length;
+            new Chart(ctx, { type: 'radar', data: { labels: ['SJ','CMJ','Libre','Remate','Bloqueo'], datasets: [{ data: [p("SJ"), p("CMJ"), p("Libre"), p("Remate")*10, p("Bloqueo")*10], backgroundColor: 'rgba(16, 185, 129, 0.3)', borderColor: '#10b981', borderWidth: 2 }] }, options: { scales: { r: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { display: false } } }, plugins: { legend: { display: false } } } });
+        },
+
+        showPlanningList() { this.showPlanningFolders(); this.showView('planning-list'); },
+        showPlanningFolders() {
+            const ac = (this.isSuperAdmin || this.isSubAdmin || !this.isCoach) ? this.appCategories : this.currentCoachTeams;
+            document.getElementById('planning-folders').innerHTML = ac.map(cat => `<div onclick="window.app.openPlanningFolder('${cat}')" class="bg-white p-8 rounded-[30px] border border-slate-100 cursor-pointer text-center">📂<h3 class="text-[10px] font-black uppercase text-indigo-950 mt-2">${cat}</h3></div>`).join('');
+            document.getElementById('planning-folders').classList.remove('hidden'); document.getElementById('planning-grid').classList.add('hidden');
+        },
+
+        openPlanningFolder(cat) {
+            this.currentPlanningFolder = cat; const fl = this.sessionPlans.filter(p => p.cat === cat);
+            document.getElementById('planning-grid').innerHTML = fl.map(p => `<div class="relative group"><div onclick="window.app.viewPlanningSession('${p.id}')" class="bg-white p-6 rounded-[30px] border border-slate-100 cursor-pointer shadow-sm"><h3 class="font-black text-indigo-950 text-sm leading-tight mb-2">${p.obj}</h3><span class="text-[9px] text-slate-400 font-bold">${p.date}</span></div><button onclick="window.app.deletePlanning('${p.id}')" class="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs opacity-0 group-hover:opacity-100">X</button></div>`).join('');
+            document.getElementById('planning-folders').classList.add('hidden'); document.getElementById('planning-grid').classList.remove('hidden'); document.getElementById('btn-back-folders').classList.remove('hidden');
+        },
+
+        async deletePlanning(id) { if (confirm("¿Borrar?")) { await fetch(`/api/delete/Planes%20Cancha/${id}`, { method: 'DELETE' }); await this.syncFromCloud(); this.openPlanningFolder(this.currentPlanningFolder); } },
+
+        viewPlanningSession(id) { const p = this.sessionPlans.find(x => x.id === id); if (!p) return; this.showPlanningForm(); document.getElementById('p-cat').value = p.cat; document.getElementById('p-obj').value = p.obj; document.getElementById('p-session').innerHTML = p.sessionHTML; },
+
+        showPlanningForm() {
+            const list = (this.isSuperAdmin || this.isSubAdmin || !this.isCoach) ? this.appCategories : this.currentCoachTeams;
+            document.getElementById('p-cat').innerHTML = list.map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('p-day-btns').innerHTML = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map(d => `<button type="button" class="chip-btn" onclick="window.app.toggleDay('${d}', this)">${d}</button>`).join('');
+            document.getElementById('p-method-btns').innerHTML = ['Analíticos','Formas Jugadas','Global','Sintético'].map(m => `<button type="button" class="chip-btn" onclick="window.app.toggleMethod('${m}', this)">${m}</button>`).join('');
+            document.getElementById('p-obj').value = ''; document.getElementById('p-session').innerHTML = '';
+            this.currentPlanningData = { days: [], methods: [] }; this.showView('planning-form');
+        },
+
+        toggleDay(v, b) { const i = this.currentPlanningData.days.indexOf(v); if (i > -1) { this.currentPlanningData.days.splice(i, 1); b.classList.remove('active'); } else { this.currentPlanningData.days.push(v); b.classList.add('active'); } },
+        toggleMethod(v, b) { const i = this.currentPlanningData.methods.indexOf(v); if (i > -1) { this.currentPlanningData.methods.splice(i, 1); b.classList.remove('active'); } else { this.currentPlanningData.methods.push(v); b.classList.add('active'); } },
+
+        async generateSessionNative() {
+            const c = document.getElementById('p-cat').value; const ob = document.getElementById('p-obj').value; const dur = document.getElementById('p-dur').value; if (!c || !ob || !dur) return alert("Faltan datos");
+            document.getElementById('ai-overlay').style.display = 'flex';
+            let fullHTML = "";
+            try {
+                const targetDays = this.currentPlanningData.days.length ? this.currentPlanningData.days : ['Lunes'];
+                for (const d of targetDays) {
+                    const res = await fetch('/api/ai/cancha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: `DÍA: ${d}. Categoría: ${c}. Objetivo: ${ob}. Duración: ${dur} min.` }) });
+                    const data = await res.json(); fullHTML += `<div class='mb-10'><h2 class='text-xl font-black uppercase text-indigo-950 mb-4 border-b-2 border-emerald-500 pb-2'>${d}</h2>${data.html}</div>`;
+                }
+                document.getElementById('p-session').innerHTML = fullHTML;
+            } finally { document.getElementById('ai-overlay').style.display = 'none'; }
+        },
+
+        async handlePlanningSave(e) {
+            e.preventDefault(); const c = document.getElementById('p-cat').value; const h = document.getElementById('p-session').innerHTML;
+            const targetDays = this.currentPlanningData.days.length ? this.currentPlanningData.days : ['Sesión'];
+            document.getElementById('ai-overlay').style.display = 'flex';
+            try { for (const d of targetDays) { await fetch('/api/save/cancha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: new Date().toISOString().split('T')[0], cat: c, obj: document.getElementById('p-obj').value, day: d, dur: document.getElementById('p-dur').value, method: this.currentPlanningData.methods.join(', '), sessionHTML: h }) }); } alert("✅ Guardado"); await this.syncFromCloud(); this.showPlanningList(); } finally { document.getElementById('ai-overlay').style.display = 'none'; }
+        },
+
+        showPhysicalList() { this.showPhysicalFolders(); this.showView('physical-list'); },
+        showPhysicalFolders() {
+            const ac = (this.isSuperAdmin || this.isSubAdmin || !this.isCoach) ? this.appCategories : this.currentCoachTeams;
+            document.getElementById('physical-folders').innerHTML = ac.map(cat => `<div onclick="window.app.openPhysicalFolder('${cat}')" class="bg-white p-8 rounded-[30px] border border-slate-100 cursor-pointer text-center">⚡<h3 class="text-[10px] font-black uppercase text-indigo-950 mt-2">${cat}</h3></div>`).join('');
+            document.getElementById('physical-folders').classList.remove('hidden'); document.getElementById('physical-grid').classList.add('hidden');
+        },
+
+        openPhysicalFolder(cat) {
+            this.currentPhysicalFolder = cat; const fl = this.physicalPlans.filter(p => p.category === cat);
+            document.getElementById('physical-grid').innerHTML = fl.map(p => `<div class="relative group"><div onclick="window.app.viewPhysicalPlan('${p.id}')" class="bg-white p-6 rounded-[30px] border border-slate-100 cursor-pointer shadow-sm"><h3 class="font-black text-indigo-950 text-sm leading-tight mb-2">${p.focus}</h3><span class="text-[9px] text-slate-400 font-bold">${p.date}</span></div><button onclick="window.app.deletePhysical('${p.id}')" class="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs opacity-0 group-hover:opacity-100">X</button></div>`).join('');
+            document.getElementById('physical-folders').classList.add('hidden'); document.getElementById('physical-grid').classList.remove('hidden'); document.getElementById('btn-back-folders-physical').classList.remove('hidden');
+        },
+
+        async deletePhysical(id) { if (confirm("¿Borrar?")) { await fetch(`/api/delete/Planes%20Fisicos/${id}`, { method: 'DELETE' }); await this.syncFromCloud(); this.openPhysicalFolder(this.currentPhysicalFolder); } },
+
+        viewPhysicalPlan(id) { const p = this.physicalPlans.find(x => x.id === id); if (!p) return; this.showPhysicalForm(); document.getElementById('pf-cat').value = p.category; document.getElementById('pf-focus').value = p.focus; document.getElementById('pf-main').innerHTML = p.mainHTML; },
+
+        showPhysicalForm() {
+            const list = (this.isSuperAdmin || this.isSubAdmin || !this.isCoach) ? this.appCategories : this.currentCoachTeams;
+            document.getElementById('pf-cat').innerHTML = list.map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('pf-focus').value = ''; document.getElementById('pf-main').innerHTML = '';
+            this.showView('physical-form');
+        },
+
+        async generatePFNative() {
+            const c = document.getElementById('pf-cat').value; const f = document.getElementById('pf-focus').value; if (!c || !f) return alert("Selecciona equipo y enfoque");
+            document.getElementById('ai-overlay').style.display = 'flex';
+            const teamAthletes = this.athletes.filter(a => a.category === c);
+            let avgSJ = 0, avgCMJ = 0, count = 0;
+            teamAthletes.forEach(at => { const ev = this.evaluations.filter(e => String(e.jugadora_id) === String(at.id)).sort((a,b) => new Date(b.fecha) - new Date(a.fecha))[0]; if(ev) { avgSJ += ev.sj; avgCMJ += ev.cmj; count++; } });
+            const metrics = count > 0 ? `Promedio Equipo: SJ ${Math.round(avgSJ/count)}cm, CMJ ${Math.round(avgCMJ/count)}cm.` : "Sin registros previos.";
+            try { const res = await fetch('/api/ai/fisica', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: `EQUIPO: ${c}. ENFOQUE: ${f}. ${metrics}` }) }); const data = await res.json(); document.getElementById('pf-main').innerHTML = data.html; } finally { document.getElementById('ai-overlay').style.display = 'none'; }
+        },
+
+        async handlePhysicalSave(e) {
+            e.preventDefault(); document.getElementById('ai-overlay').style.display = 'flex';
+            try { await fetch('/api/save/fisica', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: new Date().toISOString().split('T')[0], category: document.getElementById('pf-cat').value, focus: document.getElementById('pf-focus').value, duration: document.getElementById('pf-dur').value, material: document.getElementById('pf-material').value, mainHTML: document.getElementById('pf-main').innerHTML }) }); alert("✅ Guardado"); await this.syncFromCloud(); this.showPhysicalList(); } finally { document.getElementById('ai-overlay').style.display = 'none'; }
+        },
+
+        showAthleteForm() {
+            const list = (this.isSuperAdmin || this.isSubAdmin || !this.isCoach) ? this.appCategories : this.currentCoachTeams;
+            document.getElementById('at-cat').innerHTML = list.map(c => `<option value="${c}">${c}</option>`).join('');
+            this.editingAthleteId = null; document.getElementById('athlete-form-title').innerText = "📋 Registro Atleta";
+            this.showView('athlete-form');
+        },
+
+        editAthlete(id) { const a = this.athletes.find(x => x.id === id); if (!a) return; this.showAthleteForm(); this.editingAthleteId = id; document.getElementById('athlete-form-title').innerText = "✏️ Editar"; document.getElementById('at-name').value = a.name; document.getElementById('at-cat').value = a.category; document.getElementById('at-dni').value = a.dni || ""; },
+
+        async handleAthleteSave(e) {
+            e.preventDefault(); document.getElementById('ai-overlay').style.display = 'flex';
+            const tech = `RH: ${document.getElementById('at-rh').value}<br>EPS: ${document.getElementById('at-eps').value}<br>EMERGENCIA: ${document.getElementById('at-emergency').value}<br>Peso: ${document.getElementById('at-weight').value} kg<br>SJ: ${document.getElementById('at-sj').value} cm<br>CMJ: ${document.getElementById('at-cmj').value} cm`;
+            const d = { id: this.editingAthleteId, name: document.getElementById('at-name').value, category: document.getElementById('at-cat').value, dni: document.getElementById('at-dni').value, height: document.getElementById('at-height').value, wingspan: document.getElementById('at-wingspan').value, notes: tech, year: document.getElementById('at-year').value };
+            const url = this.editingAthleteId ? '/api/athletes/update' : '/api/athletes/create';
+            try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); alert("✅ Guardado"); await this.syncFromCloud(); this.showView('list'); } finally { document.getElementById('ai-overlay').style.display = 'none'; }
+        },
+
+        updateCompare() {
+            const aa = this.athletes.find(x => x.id === document.getElementById('compare-a').value); const ab = this.athletes.find(x => x.id === document.getElementById('compare-b').value); if (!aa || !ab) return;
+            const gv = (a, l) => { const m = (a.notes || "").match(new RegExp(l + ".*?([0-9.]+)", "i")); return m ? parseFloat(m[1]) : 0; };
+            const ctx = document.getElementById('radarComparativo').getContext('2d'); if (window.compareChartInstance) window.compareChartInstance.destroy();
+            window.compareChartInstance = new Chart(ctx, { type: 'radar', data: { labels: ['SJ','CMJ','Libre','Remate','Bloqueo'], datasets: [{ label: aa.name, data: [gv(aa,"SJ"), gv(aa,"CMJ"), gv(aa,"Libre"), gv(aa,"Remate")*10, gv(aa,"Bloqueo")*10], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)' }, { label: ab.name, data: [gv(ab,"SJ"), gv(ab,"CMJ"), gv(ab,"Libre"), gv(ab,"Remate")*10, gv(ab,"Bloqueo")*10], borderColor: '#4338ca', backgroundColor: 'rgba(67, 56, 202, 0.1)' }] }, options: { scales: { r: { ticks: { display: false } } } } });
+        },
+
+        showCompare() { const o = `<option value="">Selecciona Atleta...</option>` + this.athletes.map(a => `<option value="${a.id}">${a.name} (${a.category})</option>`).join(''); document.getElementById('compare-a').innerHTML = o; document.getElementById('compare-b').innerHTML = o; this.showView('compare'); },
+
+        async showAdminPanel() {
+            document.getElementById('ai-overlay').style.display = 'flex'; await this.syncFromCloud();
+            const p = this.registeredCoaches.filter(c => (c.status || '').toLowerCase().includes('pendiente'));
+            document.getElementById('pending-coaches-list').innerHTML = p.length === 0 ? '<p class="text-slate-400 text-center py-10 uppercase text-xs">Sin solicitudes pendientes</p>' : p.map(c => `<div class="bg-slate-50 p-6 rounded-[30px] flex justify-between items-center mb-4 border border-slate-100 shadow-sm"><div><h4 class="text-indigo-950 font-black uppercase text-sm">${c.name}</h4><p class="text-emerald-500 text-[8px] uppercase tracking-widest mt-1">${c.teams || 'Sin equipos'}</p></div><div class="flex flex-col gap-2"><button onclick="window.app.approveStaff('${c.id}', 'activo')" class="bg-indigo-950 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase">Autorizar Coach</button><button onclick="window.app.approveStaff('${c.id}', 'subadmin')" class="bg-emerald-500 text-indigo-950 px-4 py-2 rounded-xl text-[9px] font-black uppercase">Autorizar Sub-Admin</button><button onclick="window.app.rejectCoach('${c.id}')" class="bg-red-50 px-4 py-2 rounded-xl text-[9px] font-black uppercase text-red-500 border border-red-100">Rechazar</button></div></div>`).join('');
+            document.getElementById('ai-overlay').style.display = 'none'; document.getElementById('adminPanelOverlay').style.display = 'flex';
+        },
+
+        hideAdminPanel() { document.getElementById('adminPanelOverlay').style.display = 'none'; },
+        async approveStaff(id, role) { const res = await fetch('/api/staff/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: role }) }); if (res.ok) { alert("✅ Autorizado"); await this.syncFromCloud(); this.showAdminPanel(); } },
+        async rejectCoach(id) { if (confirm("¿Eliminar?")) { const res = await fetch(`/api/delete/Staff/${id}`, { method: 'DELETE' }); if (res.ok) { alert("❌ Eliminada"); await this.syncFromCloud(); this.showAdminPanel(); } } }
+    };
+    document.addEventListener('DOMContentLoaded', () => window.app.init());
+    </script>
+</body>
+</html>
