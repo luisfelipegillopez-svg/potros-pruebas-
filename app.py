@@ -72,13 +72,18 @@ def index(): return render_template('index.html')
 
 @app.route('/api/login/staff', methods=['POST'])
 def login_staff():
+    user_sent = str(request.json.get('user', '')).strip().lower()
     pin_sent = str(request.json.get('pin', '')).strip()
+    
     if pin_sent == MASTER_PIN: 
         return jsonify({"success": True, "role": "superadmin", "data": {"name": "Súper Admin", "teams": "Todas"}})
     
     staff_records = airtable_request("Staff")
     for r in staff_records:
-        if str(r['fields'].get('PIN', '')).strip() == pin_sent:
+        name_in_db = str(r['fields'].get('Nombre', '')).strip().lower()
+        pin_in_db = str(r['fields'].get('PIN', '')).strip()
+        
+        if name_in_db == user_sent and pin_in_db == pin_sent:
             status = str(r['fields'].get('Estado', 'pendiente')).lower()
             if 'pendiente' in status:
                 return jsonify({"success": False, "error": "pendiente"})

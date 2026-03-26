@@ -13,7 +13,7 @@ prompt = "MICRO-CICLO: Lunes. Objetivo: Prueba. Métodos: Analíticos. Cat: Infa
 system_instruction = "Eres Entrenador de Voleibol. Responde SOLO JSON con clave 'html' conteniendo una tabla HTML."
 
 try:
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('models/gemini-2.5-flash')
     response = model.generate_content(f"{system_instruction}\n\n{prompt}")
     print("--- RESPUESTA CRUDA ---")
     print(response.text)
